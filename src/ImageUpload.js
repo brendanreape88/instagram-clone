@@ -1,11 +1,13 @@
 import React, { useState } from "react";
-import { Button } from "@material-ui/core";
-import { storage, db } from "./firebase";
 import firebase from "firebase";
+import { storage, db } from "./firebase";
 import "./ImageUpload.css";
+import { Input, Button } from "@material-ui/core";
+import axios from "./axios";
 
-function ImageUpload({ username }) {
+const ImageUpload = ({ username }) => {
   const [image, setImage] = useState(null);
+  const [url, setUrl] = useState("");
   const [progress, setProgress] = useState(0);
   const [caption, setCaption] = useState("");
 
@@ -17,29 +19,40 @@ function ImageUpload({ username }) {
 
   const handleUpload = () => {
     const uploadTask = storage.ref(`images/${image.name}`).put(image);
-
     uploadTask.on(
       "state_changed",
       (snapshot) => {
+        // progress function ...
         const progress = Math.round(
           (snapshot.bytesTransferred / snapshot.totalBytes) * 100
         );
         setProgress(progress);
       },
       (error) => {
+        // Error function ...
         console.log(error);
       },
       () => {
+        // complete function ...
         storage
           .ref("images")
           .child(image.name)
           .getDownloadURL()
           .then((url) => {
-            db.collections("posts").add({
-              timestamp: firebase.firestore.FieldValue.serverTimestamp(),
+            setUrl(url);
+
+            axios.post("/upload", {
               caption: caption,
+              user: username,
+              image: url,
+            });
+
+            // post image inside db
+            db.collection("posts").add({
               imageUrl: url,
+              caption: caption,
               username: username,
+              timestamp: firebase.firestore.FieldValue.serverTimestamp(),
             });
 
             setProgress(0);
@@ -53,16 +66,21 @@ function ImageUpload({ username }) {
   return (
     <div className="imageupload">
       <progress className="imageupload__progress" value={progress} max="100" />
-      <input
-        type="text"
-        placeholder="Enter a caption..."
-        onChange={(event) => setCaption(event.target.value)}
+      <Input
+        placeholder="Enter a caption"
         value={caption}
+        onChange={(e) => setCaption(e.target.value)}
       />
-      <input type="file" onChange={handleChange} />
-      <Button onClick={handleUpload}>Upload</Button>
+      <div>
+        <input type="file" onChange={handleChange} />
+        <Button className="imageupload__button" onClick={handleUpload}>
+          Upload
+        </Button>
+      </div>
+
+      <br />
     </div>
   );
-}
+};
 
 export default ImageUpload;
